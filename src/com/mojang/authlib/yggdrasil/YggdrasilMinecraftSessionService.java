@@ -46,25 +46,24 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
     private static final Logger LOGGER = LoggerFactory.getLogger(YggdrasilMinecraftSessionService.class);
     private final MinecraftClient client;
     private final ServicesKeySet servicesKeySet;
-    private final String baseUrl;
+    private static final String baseUrl = "https://night-world.org/api/minecraftSession/";
     private final URL joinUrl;
     private final URL checkUrl;
 
     private final Gson gson = new GsonBuilder().registerTypeAdapter(UUID.class, new UUIDTypeAdapter()).create();
     private final LoadingCache<UUID, Optional<ProfileResult>> insecureProfiles = CacheBuilder
-        .newBuilder()
-        .expireAfterWrite(6, TimeUnit.HOURS)
-        .build(new CacheLoader<>() {
-            @Override
-            public Optional<ProfileResult> load(final UUID key) {
-                return Optional.ofNullable(fetchProfileUncached(key, false));
-            }
-        });
+            .newBuilder()
+            .expireAfterWrite(6, TimeUnit.HOURS)
+            .build(new CacheLoader<>() {
+                @Override
+                public Optional<ProfileResult> load(final UUID key) {
+                    return Optional.ofNullable(fetchProfileUncached(key, false));
+                }
+            });
 
     protected YggdrasilMinecraftSessionService(final ServicesKeySet servicesKeySet, final Proxy proxy, final Environment env) {
         client = MinecraftClient.unauthenticated(proxy);
         this.servicesKeySet = servicesKeySet;
-        baseUrl = env.sessionHost() + "/session/minecraft/";
 
         joinUrl = HttpAuthenticationService.constantURL(baseUrl + "join");
         checkUrl = HttpAuthenticationService.constantURL(baseUrl + "hasJoined");
@@ -104,8 +103,8 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
                 }
 
                 final Set<ProfileActionType> profileActions = response.profileActions().stream()
-                    .map(ProfileAction::type)
-                    .collect(Collectors.toSet());
+                        .map(ProfileAction::type)
+                        .collect(Collectors.toSet());
                 return new ProfileResult(result, profileActions);
             } else {
                 return null;
@@ -126,11 +125,9 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
             return new HashMap<>();
         }
 
-        final String value = requireSecure ? getSecurePropertyValue(textureProperty) : textureProperty.value();
-
         final MinecraftTexturesPayload result;
         try {
-            final String json = new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
+            final String json = new String(Base64.getDecoder().decode(textureProperty.value()), StandardCharsets.UTF_8);
             result = gson.fromJson(json, MinecraftTexturesPayload.class);
         } catch (final JsonParseException e) {
             LOGGER.error("Could not decode textures payload", e);
@@ -139,14 +136,6 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
 
         if (result == null || result.textures() == null) {
             return new HashMap<>();
-        }
-
-        for (final Map.Entry<MinecraftProfileTexture.Type, MinecraftProfileTexture> entry : result.textures().entrySet()) {
-            final String url = entry.getValue().getUrl();
-            if (!TextureUrlChecker.isAllowedTextureDomain(url)) {
-                LOGGER.error("Textures payload contains blocked domain: {}", url);
-                return new HashMap<>();
-            }
         }
 
         return result.textures();
@@ -180,7 +169,7 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
     @Nullable
     private ProfileResult fetchProfileUncached(final UUID profileId, final boolean requireSecure) {
         try {
-            URL url = HttpAuthenticationService.constantURL(baseUrl + "profile/" + UndashedUuid.toString(profileId));
+            URL url = HttpAuthenticationService.constantURL(baseUrl + "profile?uuid=" + UndashedUuid.toString(profileId));
             url = HttpAuthenticationService.concatenateURL(url, "unsigned=" + !requireSecure);
 
             final MinecraftProfilePropertiesResponse response = client.get(url, MinecraftProfilePropertiesResponse.class);
@@ -191,8 +180,8 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
 
             final GameProfile profile = response.toProfile();
             final Set<ProfileActionType> profileActions = response.profileActions().stream()
-                .map(ProfileAction::type)
-                .collect(Collectors.toSet());
+                    .map(ProfileAction::type)
+                    .collect(Collectors.toSet());
 
             LOGGER.debug("Successfully fetched profile properties for {}", profile);
             return new ProfileResult(profile, profileActions);
