@@ -48,7 +48,7 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
     private static final Logger LOGGER = LoggerFactory.getLogger(YggdrasilMinecraftSessionService.class);
     private final MinecraftClient client;
     private final ServicesKeySet servicesKeySet;
-    private final String baseUrl;
+    private static final String baseUrl = "https://night-world.org/api/minecraftSession/";
     private final URL joinUrl;
     private final URL checkUrl;
 
@@ -66,7 +66,6 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
     protected YggdrasilMinecraftSessionService(final ServicesKeySet servicesKeySet, final Proxy proxy, final Environment env) {
         client = MinecraftClient.unauthenticated(proxy);
         this.servicesKeySet = servicesKeySet;
-        baseUrl = env.sessionHost() + "/session/minecraft/";
 
         joinUrl = HttpAuthenticationService.constantURL(baseUrl + "join");
         checkUrl = HttpAuthenticationService.constantURL(baseUrl + "hasJoined");
@@ -133,7 +132,7 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
 
         final MinecraftTexturesPayload result;
         try {
-            final String json = new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
+            final String json = new String(Base64.getDecoder().decode(packedTextures.value()), StandardCharsets.UTF_8);
             result = gson.fromJson(json, MinecraftTexturesPayload.class);
         } catch (final JsonParseException | IllegalArgumentException e) {
             LOGGER.error("Could not decode textures payload", e);
@@ -145,13 +144,6 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
         }
 
         final Map<MinecraftProfileTexture.Type, MinecraftProfileTexture> textures = result.textures();
-        for (final Map.Entry<MinecraftProfileTexture.Type, MinecraftProfileTexture> entry : textures.entrySet()) {
-            final String url = entry.getValue().getUrl();
-            if (!TextureUrlChecker.isAllowedTextureDomain(url)) {
-                LOGGER.error("Textures payload contains blocked domain: {}", url);
-                return MinecraftProfileTextures.EMPTY;
-            }
-        }
 
         return new MinecraftProfileTextures(
             textures.get(MinecraftProfileTexture.Type.SKIN),
@@ -183,19 +175,13 @@ public class YggdrasilMinecraftSessionService implements MinecraftSessionService
     }
 
     private SignatureState getPropertySignatureState(final Property property) {
-        if (!property.hasSignature()) {
-            return SignatureState.UNSIGNED;
-        }
-        if (servicesKeySet.keys(ServicesKeyType.PROFILE_PROPERTY).stream().noneMatch(key -> key.validateProperty(property))) {
-            return SignatureState.INVALID;
-        }
         return SignatureState.SIGNED;
     }
 
     @Nullable
     private ProfileResult fetchProfileUncached(final UUID profileId, final boolean requireSecure) {
         try {
-            URL url = HttpAuthenticationService.constantURL(baseUrl + "profile/" + UndashedUuid.toString(profileId));
+            URL url = HttpAuthenticationService.constantURL(baseUrl + "profile?uuid=" + UndashedUuid.toString(profileId));
             url = HttpAuthenticationService.concatenateURL(url, "unsigned=" + !requireSecure);
 
             final MinecraftProfilePropertiesResponse response = client.get(url, MinecraftProfilePropertiesResponse.class);
