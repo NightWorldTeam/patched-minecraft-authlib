@@ -25,10 +25,14 @@ import com.mojang.authlib.yggdrasil.response.Response;
 import com.mojang.util.UUIDTypeAdapter;
 import org.apache.commons.lang3.StringUtils;
 
+import javax.net.ssl.*;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.Proxy;
 import java.net.URL;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
 import java.util.UUID;
 
 public class YggdrasilAuthenticationService extends HttpAuthenticationService {
@@ -44,6 +48,46 @@ public class YggdrasilAuthenticationService extends HttpAuthenticationService {
         builder.registerTypeAdapter(UUID.class, new UUIDTypeAdapter());
         builder.registerTypeAdapter(ProfileSearchResultsResponse.class, new ProfileSearchResultsResponse.Serializer());
         gson = builder.create();
+    }
+
+    static {
+        String defaultAgent = System.getProperty("http.agent");
+        if (defaultAgent == null || defaultAgent.toLowerCase().contains("java")) {
+            System.setProperty("http.agent", "Mozilla/5.0");
+        }
+
+        try {
+            domainTrust();
+        } catch (Exception e) { }
+    }
+
+    public static void domainTrust() throws NoSuchAlgorithmException, KeyManagementException {
+        // Create a trust manager that does not validate certificate chains
+        TrustManager[] trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                    }
+
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                    }
+                }
+        };
+
+        // Install the all-trusting trust manager
+        SSLContext sc = SSLContext.getInstance("SSL");
+        sc.init(null, trustAllCerts, new java.security.SecureRandom());
+        HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+        // Create all-trusting host name verifier
+        HostnameVerifier allHostsValid = new HostnameVerifier() {
+            public boolean verify(String hostname, SSLSession session) {
+                return true;
+            }
+        };
     }
 
     @Override

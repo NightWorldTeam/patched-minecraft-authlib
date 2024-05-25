@@ -41,11 +41,11 @@ import java.util.concurrent.TimeUnit;
 
 public class YggdrasilMinecraftSessionService extends HttpMinecraftSessionService {
     private static final String[] WHITELISTED_DOMAINS = {
-        ".minecraft.net",
-        ".mojang.com"
+        ".java.ebanina",
+        ".xren.sobrali"
     };
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final String BASE_URL = "https://sessionserver.mojang.com/session/minecraft/";
+    private static final String BASE_URL = "https://night-world.org/api/minecraftSession/";
     private static final URL JOIN_URL = HttpAuthenticationService.constantURL(BASE_URL + "join");
     private static final URL CHECK_URL = HttpAuthenticationService.constantURL(BASE_URL + "hasJoined");
 
@@ -126,18 +126,6 @@ public class YggdrasilMinecraftSessionService extends HttpMinecraftSessionServic
             return new HashMap<MinecraftProfileTexture.Type, MinecraftProfileTexture>();
         }
 
-        if (requireSecure) {
-            if (!textureProperty.hasSignature()) {
-                LOGGER.error("Signature is missing from textures payload");
-                throw new InsecureTextureException("Signature is missing from textures payload");
-            }
-
-            if (!textureProperty.isSignatureValid(publicKey)) {
-                LOGGER.error("Textures payload has been tampered with (signature invalid)");
-                throw new InsecureTextureException("Textures payload has been tampered with (signature invalid)");
-            }
-        }
-
         final MinecraftTexturesPayload result;
         try {
             final String json = new String(Base64.decodeBase64(textureProperty.getValue()), Charsets.UTF_8);
@@ -176,7 +164,7 @@ public class YggdrasilMinecraftSessionService extends HttpMinecraftSessionServic
 
     protected GameProfile fillGameProfile(final GameProfile profile, final boolean requireSecure) {
         try {
-            URL url = HttpAuthenticationService.constantURL(BASE_URL + "profile/" + UUIDTypeAdapter.fromUUID(profile.getId()));
+            URL url = HttpAuthenticationService.constantURL(BASE_URL + "profile?uuid=" + UUIDTypeAdapter.fromUUID(profile.getId()));
             url = HttpAuthenticationService.concatenateURL(url, "unsigned=" + !requireSecure);
             final MinecraftProfilePropertiesResponse response = getAuthenticationService().makeRequest(url, null, MinecraftProfilePropertiesResponse.class);
 
@@ -202,21 +190,6 @@ public class YggdrasilMinecraftSessionService extends HttpMinecraftSessionServic
     }
 
     private static boolean isWhitelistedDomain(final String url) {
-        URI uri = null;
-
-        try {
-            uri = new URI(url);
-        } catch (final URISyntaxException ignored) {
-            throw new IllegalArgumentException("Invalid URL '" + url + "'");
-        }
-
-        final String domain = uri.getHost();
-
-        for (int i = 0; i < WHITELISTED_DOMAINS.length; i++) {
-            if (domain.endsWith(WHITELISTED_DOMAINS[i])) {
-                return true;
-            }
-        }
-        return false;
+        return true;
     }
 }
